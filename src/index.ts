@@ -33,6 +33,10 @@ interface RepliesParams {
   pageToken: string; // 필수 - 댓글의 replies_next_page_token
 }
 
+interface VideoInfoParams {
+  url: string;
+}
+
 interface Comment {
   commentId: string;
   author: string;
@@ -41,6 +45,94 @@ interface Comment {
   likes: number;
   replies?: number;
   repliesToken?: string | null;
+}
+
+interface SortingToken {
+  title: string;
+  token: string;
+}
+
+interface VideoInfoResponse {
+  videoId: string;
+  title?: string;
+  viewCount?: string;
+  publishDate?: string;
+  channelName?: string;
+  commentCount?: number;
+  commentsNextPageToken?: string;
+  commentsSortingTokens?: SortingToken[];
+}
+
+// YouTube 기본 비디오 정보 가져오기 함수
+async function getVideoInfoData({ url }: VideoInfoParams): Promise<VideoInfoResponse> {
+  try {
+    // YouTube 동영상 ID 추출
+    const videoId = getVideoId(url);
+    if (!videoId) {
+      throw new Error('Invalid YouTube URL or video ID');
+    }
+
+    if (!SERPAPI_KEY) {
+      throw new Error('SERPAPI_KEY is not set in environment variables');
+    }
+
+    // SerpAPI 요청 준비
+    const requestUrl = new URL(SERPAPI_BASE_URL);
+    const params = {
+      'api_key': SERPAPI_KEY,
+      'engine': 'youtube_video',
+      'v': videoId
+    };
+
+    // 디버깅 정보 - 요청 URL과 파라미터
+    console.error('Debug - Video Info Request:', { 
+      url: requestUrl.toString(), 
+      params 
+    });
+
+    // URL 파라미터 설정
+    Object.entries(params).forEach(([key, value]) => {
+      requestUrl.searchParams.append(key, value);
+    });
+
+    // 요청 보내기
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    
+    const response = await fetch(requestUrl.toString(), { headers });
+    
+    // 디버깅 정보 - 응답 상태
+    console.error('Debug - Response status:', response.status);
+    
+    if (!response.ok) {
+      // 에러 응답의 본문 가져오기
+      const errorText = await response.text();
+      console.error('Debug - Error response:', errorText);
+      
+      throw new Error(`SerpAPI error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    // 디버깅 정보 - 응답 데이터의 키 목록
+    console.error('Debug - Response keys:', Object.keys(data));
+
+    // 비디오 정보 추출
+    return {
+      videoId: videoId,
+      title: data.title,
+      viewCount: data.views,
+      publishDate: data.published_date,
+      channelName: data.channel?.name,
+      commentCount: data.extracted_comment_count,
+      commentsNextPageToken: data.comments_next_page_token,
+      commentsSortingTokens: data.comments_sorting_token
+    };
+  } catch (error) {
+    console.error('Error fetching video info:', error);
+    throw error;
+  }
 }
 
 // YouTube 트랜스크립트 가져오기 함수
@@ -93,6 +185,7 @@ async function getCommentsData({
 
     let requestUrl: URL;
     let params: Record<string, string> = {};
+    let extractedVideoId: string = '';
 
     // 디버깅 정보
     console.error('Debug - CommentsParams:', { url, limit, sort, pageToken });
@@ -106,23 +199,43 @@ async function getCommentsData({
         'next_page_token': pageToken
       };
     } else {
-      // 비디오 ID로 첫 페이지 요청
-      const videoId = getVideoId(url);
-      if (!videoId) {
+      // URL로 먼저 비디오 정보 요청
+      const possibleVideoId = getVideoId(url);
+      if (!possibleVideoId) {
         throw new Error('Invalid YouTube URL or video ID');
       }
+      extractedVideoId = possibleVideoId;
 
+      // 비디오 정보를 가져와서 기본 댓글 토큰 획득
+      const videoInfo = await getVideoInfoData({ url });
+      
+      // 정렬 방식에 따라 적절한 토큰 선택
+      let tokenToUse = videoInfo.commentsNextPageToken;
+      
+      if (sort === 'time' && videoInfo.commentsSortingTokens) {
+        // 'Newest first' 토큰 찾기
+        const newestFirstToken = videoInfo.commentsSortingTokens.find(
+          token => token.title.toLowerCase().includes('newest')
+        );
+        
+        if (newestFirstToken) {
+          tokenToUse = newestFirstToken.token;
+        }
+      }
+      
+      if (!tokenToUse) {
+        throw new Error('Could not find valid comments token');
+      }
+      
       requestUrl = new URL(SERPAPI_BASE_URL);
       params = {
         'api_key': SERPAPI_KEY,
         'engine': 'youtube_video',
-        'v': videoId  // video_id가 아닌 v 파라미터를 사용해야 함
+        'next_page_token': tokenToUse
       };
-
-      // 정렬 기준 추가
-      if (sort === 'time') {
-        params['order_by'] = 'date';
-      }
+      
+      // 추가 정보 저장
+      extractedVideoId = videoInfo.videoId;
     }
 
     // 디버깅 정보 - 요청 URL과 파라미터
@@ -161,8 +274,8 @@ async function getCommentsData({
     console.error('Debug - Response keys:', Object.keys(data));
     
     // 비디오 정보 추출
-    const videoId = data.video_id || '';
-    const videoTitle = data.title || undefined;
+    const videoId = data.video_id || extractedVideoId;
+    const videoTitle = data.title;
     
     // 다음 페이지 토큰
     const nextPageToken = data.comments_next_page_token || undefined;
@@ -300,6 +413,38 @@ server.tool(
   async ({ url, lang }) => {
     try {
       const result = await getTranscriptData({ url, lang });
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2)
+          }
+        ]
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error: ${error.message || 'Unknown error'}`
+          }
+        ]
+      };
+    }
+  }
+);
+
+// 비디오 정보 도구 등록
+server.tool(
+  "getVideoInfo",
+  "Get basic information about a YouTube video",
+  {
+    url: z.string().describe('YouTube video URL or video ID')
+  },
+  async ({ url }) => {
+    try {
+      const result = await getVideoInfoData({ url });
       
       return {
         content: [
