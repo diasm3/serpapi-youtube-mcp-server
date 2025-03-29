@@ -5,6 +5,7 @@ A Model Context Protocol (MCP) server for extracting YouTube video transcripts a
 ## Features
 
 - `getTranscript`: Extract subtitles/transcripts from YouTube videos
+- `getVideoInfo`: Get basic information about a YouTube video
 - `getReplies`: Fetch comments for YouTube videos (using SerpAPI)
 - `getCommentReplies`: Get replies to specific YouTube comments
 
@@ -77,6 +78,31 @@ Replace `/path/to/youtube-data-mcp/build/index.js` with the actual path to the b
    - "Get replies to specific comments"
 
 ## API Tools
+
+### getVideoInfo
+
+Retrieve basic information about a YouTube video.
+
+Parameters:
+
+- `url`: YouTube video URL or video ID (required)
+
+Returns:
+
+- `videoId`: The video's ID
+- `title`: The video's title
+- `viewCount`: Number of views
+- `publishDate`: Date when the video was published
+- `channelName`: Name of the channel that published the video
+- `commentCount`: Number of comments on the video
+- `commentsNextPageToken`: Token for fetching comments
+- `commentsSortingTokens`: Tokens for different comment sorting options
+
+Example (via Claude):
+
+```
+Get information about this YouTube video: https://www.youtube.com/watch?v=dQw4w9WgXcQ
+```
 
 ### getTranscript
 
