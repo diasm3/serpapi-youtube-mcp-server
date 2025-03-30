@@ -58,8 +58,8 @@ To use this MCP server with Claude:
 {
   "mcpServers": {
     "youtube-data": {
-      "command": "node",
-      "args": ["/path/to/youtube-data-mcp/build/index.js"],
+      "command": "npx",
+      "args": ["-y","youtube-data-mcp"],
       "env": {
         "SERPAPI_KEY": "your_serpapi_key_here"
       }
