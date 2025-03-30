@@ -15,7 +15,7 @@ A Model Context Protocol (MCP) server for extracting YouTube video transcripts a
 - TypeScript
 - SerpAPI API key (for comments functionality)
 
-## Installation
+## Installation(for Developer)
 
 ```bash
 # Clone the repository
@@ -67,8 +67,6 @@ To use this MCP server with Claude:
   }
 }
 ```
-
-Replace `/path/to/youtube-data-mcp/build/index.js` with the actual path to the built index.js file.
 
 2. Restart Claude to apply the configuration.
 
