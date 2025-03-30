@@ -1,6 +1,6 @@
 {
   "name": "youtube-data-mcp",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Extract YouTube transcripts and comments for analysis",
   "type": "module",
   "main": "build/index.js",
@@ -8,10 +8,14 @@
     "youtube-data-mcp": "./build/index.js"
   },
   "scripts": {
-    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "build": "tsc && chmod +x build/index.js",
     "start": "node build/index.js",
-    "dev": "ts-node-esm src/index.ts"
+    "dev": "ts-node-esm src/index.ts",
+    "prepare": "npm run build"
   },
+  "files": [
+    "build"
+  ],
   "keywords": [
     "mcp",
     "youtube",
