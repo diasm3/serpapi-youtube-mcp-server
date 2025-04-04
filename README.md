@@ -77,6 +77,25 @@ To use this MCP server with Claude:
 
 ## API Tools
 
+### searchYoutube
+
+Search for videos, channels, and playlists on YouTube.
+
+Parameters:
+
+- `query`: Search query for YouTube (required)
+- `limit`: Maximum number of results to return (optional, default: 10)
+- `gl`: Country code for search results (optional, e.g., 'us', 'kr', 'jp')
+- `hl`: Language code for search results (optional, e.g., 'en', 'ko', 'ja')
+- `sp`: Special parameter for filtering or pagination (optional)
+- `pageToken`: Token for pagination from previous response (optional)
+
+Example (via Claude):
+
+```
+Search for "JavaScript tutorial" on YouTube and show me the top 5 results
+```
+
 ### getVideoInfo
 
 Retrieve basic information about a YouTube video.
@@ -146,7 +165,7 @@ This function is typically used programmatically after getting the `repliesToken
 
 ## Understanding SerpAPI Integration
 
-This MCP server uses SerpAPI's YouTube Video API to fetch comments. SerpAPI provides a way to scrape YouTube data without directly using YouTube's official API.
+This MCP server uses SerpAPI's YouTube Search API and YouTube Video API to fetch search results, comments, and other data. SerpAPI provides a way to scrape YouTube data without directly using YouTube's official API.
 
 Key points about SerpAPI usage:
 

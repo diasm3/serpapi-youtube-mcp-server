@@ -39,6 +39,15 @@ interface VideoInfoParams {
   url: string
 }
 
+interface SearchParams {
+  query: string
+  limit?: number
+  gl?: string
+  hl?: string
+  sp?: string
+  pageToken?: string
+}
+
 interface Comment {
   commentId: string
   author: string
@@ -321,6 +330,89 @@ async function getCommentsData({
   }
 }
 
+// YouTube 검색 함수 구현
+async function searchYouTube({
+  query,
+  limit = 10,
+  gl,
+  hl,
+  sp,
+  pageToken,
+}: SearchParams) {
+  try {
+    if (!SERPAPI_KEY) {
+      throw new Error("SERPAPI_KEY is not set in environment variables")
+    }
+
+    // SerpAPI 요청 URL 및 기본 파라미터 설정
+    const requestUrl = new URL(SERPAPI_BASE_URL)
+    const params: Record<string, string> = {
+      api_key: SERPAPI_KEY,
+      engine: "youtube",
+      search_query: query,
+    }
+
+    // 선택적 파라미터 추가
+    if (gl) params.gl = gl // 국가 코드
+    if (hl) params.hl = hl // 언어 코드
+    if (sp) params.sp = sp // 필터링 및 페이지네이션
+    if (pageToken) params.sp = pageToken // 다음 페이지 토큰
+
+    // 디버깅 정보 출력
+    console.error("Debug - YouTube Search Request:", {
+      url: requestUrl.toString(),
+      params,
+    })
+
+    // URL 파라미터 설정
+    Object.entries(params).forEach(([key, value]) => {
+      requestUrl.searchParams.append(key, value)
+    })
+
+    // 요청 보내기
+    const headers = {
+      "Content-Type": "application/json",
+    }
+
+    const response = await fetch(requestUrl.toString(), { headers })
+
+    // 디버깅 정보 - 응답 상태
+    console.error("Debug - Response status:", response.status)
+
+    if (!response.ok) {
+      // 에러 응답의 본문 가져오기
+      const errorText = await response.text()
+      console.error("Debug - Error response:", errorText)
+      throw new Error(`SerpAPI error: ${response.status} - ${errorText}`)
+    }
+
+    const data = await response.json()
+
+    // 디버깅 정보 - 응답 데이터의 키 목록
+    console.error("Debug - Response keys:", Object.keys(data))
+
+    // 결과 처리 및 구조화
+    return {
+      search_metadata: data.search_metadata,
+      search_parameters: data.search_parameters,
+      search_information: data.search_information,
+      video_results: data.video_results?.slice(0, limit) || [],
+      channel_results: data.channel_results || [],
+      playlist_results: data.playlist_results || [],
+      movie_results: data.movie_results || [],
+      related_searches: data.searches_related_to_star_wars?.searches || [],
+      pagination: {
+        current: data.pagination?.current,
+        next: data.pagination?.next,
+        next_page_token: data.pagination?.next_page_token,
+      },
+    }
+  } catch (error) {
+    console.error("Error searching YouTube:", error)
+    throw error
+  }
+}
+
 // 특정 댓글의 답글을 가져오는 함수
 async function getRepliesData({ pageToken }: RepliesParams) {
   try {
@@ -540,6 +632,66 @@ server.tool(
   async ({ pageToken }) => {
     try {
       const result = await getRepliesData({ pageToken })
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      }
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error: ${error.message || "Unknown error"}`,
+          },
+        ],
+      }
+    }
+  }
+)
+
+// YouTube 검색 도구 등록
+server.tool(
+  "searchYoutube",
+  "Search YouTube videos, channels, and playlists",
+  {
+    query: z.string().describe("Search query for YouTube"),
+    limit: z
+      .number()
+      .optional()
+      .default(10)
+      .describe("Maximum number of results to return (default: 10)"),
+    gl: z
+      .string()
+      .optional()
+      .describe("Country code for search results (e.g., 'us', 'kr', 'jp')"),
+    hl: z
+      .string()
+      .optional()
+      .describe("Language code for search results (e.g., 'en', 'ko', 'ja')"),
+    sp: z
+      .string()
+      .optional()
+      .describe("Special parameter for filtering or pagination"),
+    pageToken: z
+      .string()
+      .optional()
+      .describe("Token for pagination from previous response"),
+  },
+  async ({ query, limit, gl, hl, sp, pageToken }) => {
+    try {
+      const result = await searchYouTube({
+        query,
+        limit,
+        gl,
+        hl,
+        sp,
+        pageToken,
+      })
 
       return {
         content: [
