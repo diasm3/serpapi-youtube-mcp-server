@@ -1,6 +1,6 @@
 {
   "name": "youtube-data-mcp",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Extract YouTube transcripts and comments for analysis",
   "type": "module",
   "main": "build/index.js",

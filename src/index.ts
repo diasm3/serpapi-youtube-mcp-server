@@ -22,6 +22,7 @@ const SERPAPI_BASE_URL = "https://serpapi.com/search.json"
 interface TranscriptParams {
   url: string
   lang?: string
+  includeTranscript?: boolean
 }
 
 interface CommentsParams {
@@ -149,7 +150,11 @@ async function getVideoInfoData({
 }
 
 // YouTube 트랜스크립트 가져오기 함수
-async function getTranscriptData({ url, lang = "en" }: TranscriptParams) {
+async function getTranscriptData({
+  url,
+  lang = "en",
+  includeTranscript = false,
+}: TranscriptParams) {
   try {
     // YouTube 동영상 ID 추출
     const videoId = getVideoId(url)
@@ -168,7 +173,8 @@ async function getTranscriptData({ url, lang = "en" }: TranscriptParams) {
     // 전체 텍스트 구성
     const fullText = transcript.map((segment) => segment.text).join(" ")
 
-    return {
+    // 결과 객체 구성
+    const result: any = {
       videoInfo: {
         id: videoId,
         title: videoInfo.title,
@@ -176,10 +182,15 @@ async function getTranscriptData({ url, lang = "en" }: TranscriptParams) {
         publishedAt: videoInfo.publishedAt,
         viewCount: videoInfo.viewCount,
       },
-      transcript: transcript,
-      fullText: fullText,
+      fullText,
       language: lang,
     }
+
+    if (includeTranscript) {
+      result.transcript = transcript
+    }
+
+    return result
   } catch (error) {
     console.error("Error fetching transcript:", error)
     throw error
