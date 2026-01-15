@@ -1,65 +1,79 @@
 # YouTube Data MCP Server
 
-A Model Context Protocol (MCP) server for extracting YouTube video transcripts and comments. This server provides tools to get transcripts and comments from YouTube videos for analysis and summarization.
+A Model Context Protocol (MCP) server for extracting YouTube video transcripts, comments, and search results. Supports both **Stdio** and **StreamableHTTP** transports.
 
 ## Features
 
-- `getTranscript`: Extract subtitles/transcripts from YouTube videos
-- `getVideoInfo`: Get basic information about a YouTube video
-- `getReplies`: Fetch comments for YouTube videos (using SerpAPI)
-- `getCommentReplies`: Get replies to specific YouTube comments
+- `getTranscript` - Extract subtitles/transcripts with optional timestamps
+- `getVideoInfo` - Get video metadata (title, views, comments count)
+- `getComments` - Fetch comments with pagination and sorting
+- `getCommentReplies` - Get replies to specific comments
+- `searchYoutube` - Search videos, channels, and playlists
+
+## What's New in v2.0
+
+- **Dual Transport**: Stdio (default) + StreamableHTTP for web integration
+- **Reliable Transcripts**: Replaced `youtube-transcript` with `youtube-caption-extractor` (bot detection bypass, serverless support)
+- **Timestamp Support**: Optional start time and duration for each transcript segment
+- **Modular Architecture**: Clean separation of concerns (config, types, services, tools)
+- **MCP SDK v1.25.2**: Latest SDK with improved stability
 
 ## Requirements
 
-- Node.js 16+
-- TypeScript
-- SerpAPI API key (for comments functionality)
+- Node.js 18+
+- SerpAPI key (for search, comments, video info)
 
-## Installation(for Developer)
+## Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/diasm3/serpapi-youtube-mcp-server.git
-cd youtube-data-mcp
-
-# Install dependencies
+cd serpapi-youtube-mcp-server
 npm install
 ```
 
 ## Configuration
 
-Create a `.env` file in the root directory with your SerpAPI key:
+Create a `.env` file:
 
 ```
 SERPAPI_KEY=your_serpapi_key_here
+PORT=3000  # optional, for HTTP mode
 ```
 
-You can get a SerpAPI key by signing up at [SerpAPI](https://serpapi.com/).
+Get your SerpAPI key at [serpapi.com](https://serpapi.com/).
 
-## Build and Run
+## Running the Server
 
 ```bash
-# Build the project
+# Build
 npm run build
 
-# Run the server
+# Stdio mode (default) - for Claude Desktop, Cursor, etc.
 npm start
+
+# HTTP mode - for web applications
+npm start -- --http
+# or
+MCP_TRANSPORT=http npm start
 ```
 
-The server will start running and listening for commands via stdin/stdout.
+### HTTP Endpoints
 
-## Using with Claude
+When running in HTTP mode:
 
-To use this MCP server with Claude:
+- `GET /health` - Health check
+- `POST /mcp` - MCP request handler
 
-1. Add the server to your Claude configuration file:
+## MCP Client Configuration
+
+### Claude Desktop / Cursor
 
 ```json
 {
   "mcpServers": {
     "youtube-data": {
-      "command": "npx",
-      "args": ["-y","youtube-data-mcp"],
+      "command": "node",
+      "args": ["/path/to/serpapi-youtube-mcp-server/build/index.js"],
       "env": {
         "SERPAPI_KEY": "your_serpapi_key_here"
       }
@@ -68,117 +82,109 @@ To use this MCP server with Claude:
 }
 ```
 
-2. Restart Claude to apply the configuration.
+### Using npx
 
-3. Now you can ask Claude to:
-   - "Get the transcript for this YouTube video: [URL]"
-   - "Show me the comments for this YouTube video: [URL]"
-   - "Get replies to specific comments"
+```json
+{
+  "mcpServers": {
+    "youtube-data": {
+      "command": "npx",
+      "args": ["-y", "youtube-data-mcp"],
+      "env": {
+        "SERPAPI_KEY": "your_serpapi_key_here"
+      }
+    }
+  }
+}
+```
 
 ## API Tools
 
-### searchYoutube
+### getTranscript
 
-Search for videos, channels, and playlists on YouTube.
+Extract transcript/subtitles from a YouTube video.
 
-Parameters:
-
-- `query`: Search query for YouTube (required)
-- `limit`: Maximum number of results to return (optional, default: 10)
-- `gl`: Country code for search results (optional, e.g., 'us', 'kr', 'jp')
-- `hl`: Language code for search results (optional, e.g., 'en', 'ko', 'ja')
-- `sp`: Special parameter for filtering or pagination (optional)
-- `pageToken`: Token for pagination from previous response (optional)
-
-Example (via Claude):
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `url` | string | Yes | YouTube URL or video ID |
+| `lang` | string | No | Language code (default: 'en') |
+| `includeTimestamps` | boolean | No | Include start/duration per segment |
 
 ```
-Search for "JavaScript tutorial" on YouTube and show me the top 5 results
+Get the Korean transcript for https://youtube.com/watch?v=xxxxx with timestamps
 ```
 
 ### getVideoInfo
 
-Retrieve basic information about a YouTube video.
+Get video metadata using SerpAPI.
 
-Parameters:
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `url` | string | Yes | YouTube URL or video ID |
 
-- `url`: YouTube video URL or video ID (required)
+Returns: title, views, publish date, channel, comment count, pagination tokens
 
-Returns:
+### getComments
 
-- `videoId`: The video's ID
-- `title`: The video's title
-- `viewCount`: Number of views
-- `publishDate`: Date when the video was published
-- `channelName`: Name of the channel that published the video
-- `commentCount`: Number of comments on the video
-- `commentsNextPageToken`: Token for fetching comments
-- `commentsSortingTokens`: Tokens for different comment sorting options
+Fetch video comments with pagination.
 
-Example (via Claude):
-
-```
-Get information about this YouTube video: https://www.youtube.com/watch?v=dQw4w9WgXcQ
-```
-
-### getTranscript
-
-Extracts transcripts/subtitles from YouTube videos.
-
-Parameters:
-
-- `url`: YouTube video URL or video ID (required)
-- `lang`: Language code for transcript (optional, default: 'en')
-
-Example (via Claude):
-
-```
-Please get the transcript for this YouTube video: https://www.youtube.com/watch?v=dQw4w9WgXcQ
-```
-
-### getReplies
-
-Retrieves comments from a YouTube video using SerpAPI.
-
-Parameters:
-
-- `url`: YouTube video URL or video ID (required for initial page, optional for pagination)
-- `limit`: Maximum number of comments to retrieve (optional, default: 100)
-- `sort`: Sort order for comments ('relevance' or 'time', optional, default: 'relevance')
-- `pageToken`: Token for pagination from previous response (optional)
-
-Example (via Claude):
-
-```
-Show me comments for this YouTube video: https://www.youtube.com/watch?v=dQw4w9WgXcQ
-```
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `url` | string | Conditional | Required for first page |
+| `limit` | number | No | Max comments (default: 100) |
+| `sort` | string | No | 'relevance' or 'time' |
+| `pageToken` | string | No | For pagination |
 
 ### getCommentReplies
 
-Gets replies for a specific YouTube comment.
+Get replies to a specific comment.
 
-Parameters:
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `pageToken` | string | Yes | `repliesToken` from comment |
 
-- `pageToken`: Reply token from a comment to get its replies (required)
+### searchYoutube
 
-This function is typically used programmatically after getting the `repliesToken` from a comment.
+Search YouTube for videos, channels, playlists.
 
-## Understanding SerpAPI Integration
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `query` | string | Yes | Search query |
+| `limit` | number | No | Max results (default: 10) |
+| `gl` | string | No | Country code (us, kr, jp) |
+| `hl` | string | No | Language code (en, ko, ja) |
+| `sp` | string | No | Filter parameter |
+| `pageToken` | string | No | For pagination |
 
-This MCP server uses SerpAPI's YouTube Search API and YouTube Video API to fetch search results, comments, and other data. SerpAPI provides a way to scrape YouTube data without directly using YouTube's official API.
+## Project Structure
 
-Key points about SerpAPI usage:
-
-- The server uses the `youtube_video` engine with the `v` parameter (YouTube video ID)
-- Comments are paginated using tokens returned in the API response
-- Comment replies are fetched separately using their specific tokens
-- API calls are limited by your SerpAPI subscription plan
+```
+src/
+├── index.ts          # Server entry (Stdio + HTTP)
+├── config/           # Environment configuration
+├── types/            # Zod schemas + TypeScript types
+├── services/
+│   ├── serpapi.ts    # SerpAPI integration
+│   └── youtube.ts    # Transcript extraction
+├── tools/            # MCP tool definitions
+└── utils/            # Helper functions
+```
 
 ## Troubleshooting
 
-- If you encounter a 400 Bad Request error, verify your SerpAPI key is valid and properly set in the .env file
-- Check the server logs for detailed error messages and debugging information
-- For comment-related issues, ensure SerpAPI still supports the YouTube Video API format used
+### Transcript not available
+- Some videos don't have captions enabled
+- Try different language codes (en, ko, ja, etc.)
+- Auto-generated captions may not be available for all videos
+
+### SerpAPI errors
+- Verify your API key is valid
+- Check your SerpAPI quota/limits
+- Ensure the video is publicly accessible
+
+### HTTP mode not starting
+- Check if PORT is already in use
+- Verify environment variables are set
 
 ## License
 
